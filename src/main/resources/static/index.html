@@ -18,7 +18,7 @@
 
 <script>
     let username = '';
-    const socket = new SockJS('http://localhost:8080/ws');
+    const socket = new SockJS('http://34.118.71.122:8000/ws');
     const stompClient = Stomp.over(socket);
 
     // Загрузка имени из localStorage при загрузке страницы
