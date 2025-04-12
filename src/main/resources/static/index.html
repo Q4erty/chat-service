@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebSocket Chat</title>
+    <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+</head>
+<body>
+<div>
+    <input type="text" id="username" placeholder="Enter your name"
+           style="margin-bottom: 10px;">
+</div>
+<div>
+    <input type="text" id="message" placeholder="Type your message...">
+    <button onclick="sendMessage()">Send</button>
+</div>
+<div id="chat" style="margin-top: 20px;"></div>
+
+<script>
+    let username = '';
+    const socket = new SockJS('http://localhost:8080/ws');
+    const stompClient = Stomp.over(socket);
+
+    // Загрузка имени из localStorage при загрузке страницы
+    window.onload = function() {
+        const savedName = localStorage.getItem('chatUsername');
+        if(savedName) {
+            document.getElementById('username').value = savedName;
+        }
+    }
+
+    // Сохранение имени при изменении
+    document.getElementById('username').addEventListener('change', function(e) {
+        localStorage.setItem('chatUsername', e.target.value);
+    });
+
+    stompClient.connect({}, function(frame) {
+        console.log('Connected: ' + frame);
+        stompClient.subscribe('/topic/messages', function(message) {
+            showMessage(JSON.parse(message.body));
+        });
+    });
+
+    function sendMessage() {
+        const usernameInput = document.getElementById('username');
+        const messageInput = document.getElementById('message');
+
+        if(!usernameInput.value.trim()) {
+            alert('Please enter your name!');
+            return;
+        }
+
+        const message = {
+            from: usernameInput.value.trim(),
+            text: messageInput.value
+        };
+
+        stompClient.send("/app/chat", {}, JSON.stringify(message));
+        messageInput.value = '';
+    }
+
+    function showMessage(message) {
+        const chat = document.getElementById('chat');
+        const messageElement = document.createElement('div');
+        messageElement.innerHTML = `<b>${message.from}:</b> ${message.text}`;
+        chat.appendChild(messageElement);
+    }
+</script>
+</body>
+</html>
