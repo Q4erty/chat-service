@@ -2,87 +2,61 @@
 <html>
 <head>
     <title>WebSocket Chat</title>
-    <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1.6.1/dist/sockjs.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
 </head>
 <body>
-<div>
-    <input type="text" id="username" placeholder="Enter your name"
-           style="margin-bottom: 10px;">
-</div>
-<div>
-    <input type="text" id="message" placeholder="Type your message...">
-    <button onclick="sendMessage()">Send</button>
-</div>
-<div id="chat" style="margin-top: 20px;"></div>
+<div id="messages" style="border: 1px solid #ccc; padding: 10px; height: 300px; overflow-y: auto;"></div>
+<input type="text" id="messageInput" placeholder="Ваше сообщение" style="width: 70%; padding: 5px;">
+<button onclick="sendMessage()" style="padding: 5px 15px;">Отправить</button>
 
 <script>
-    let username = '';
-    const socket = new SockJS('http://localhost:8080/ws');
-    const stompClient = Stomp.over(socket);
+    let stompClient = null;
 
-    window.onload = function() {
-        const savedName = localStorage.getItem('chatUsername');
-        if(savedName) {
-            document.getElementById('username').value = savedName;
-        }
+    function connect() {
+        const socket = new SockJS('http://' + window.location.host + '/ws');
+        stompClient = Stomp.over(socket);
+
+        stompClient.connect({}, () => {
+            stompClient.subscribe('/topic/messages', (message) => {
+                const msg = JSON.parse(message.body);
+                showMessage(msg);
+            });
+        }, (error) => {
+            console.error('Ошибка подключения:', error);
+            setTimeout(connect, 5000); // Переподключение через 5 сек
+        });
     }
 
-    document.getElementById('username').addEventListener('change', function(e) {
-        localStorage.setItem('chatUsername', e.target.value);
-    });
-
-    stompClient.connect({},
-        function(frame) {
-            console.log('Connected: ' + frame);
-            stompClient.subscribe('/topic/messages', function(message) {
-                console.log('Received:', message.body);
-                try {
-                    const parsed = JSON.parse(message.body);
-                    showMessage(parsed);
-                } catch (e) {
-                    console.error('Parse error:', e);
-                }
-            });
-        },
-        function(error) {
-            console.error('Connection error:', error);
-            setTimeout(connect, 5000);
-        }
-    );
-
     function sendMessage() {
-        const usernameInput = document.getElementById('username');
-        const messageInput = document.getElementById('message');
-
-        if (!usernameInput.value.trim()) {
-            alert('Введите имя!');
+        const input = document.getElementById('messageInput');
+        if (!stompClient || !stompClient.connected) {
+            alert('Соединение не установлено!');
             return;
         }
 
         const message = {
-            from: usernameInput.value.trim(),
-            text: messageInput.value
+            from: 'Пользователь',
+            text: input.value
         };
 
-        console.log('Sending:', message);
         stompClient.send("/app/chat", {}, JSON.stringify(message));
-        messageInput.value = '';
+        input.value = '';
     }
 
     function showMessage(message) {
-        const chat = document.getElementById('chat');
+        const messagesDiv = document.getElementById('messages');
         const messageElement = document.createElement('div');
-        messageElement.innerHTML = `<b>${message.from}:</b> ${message.text}`;
-        chat.appendChild(messageElement);
+        messageElement.textContent = `${message.from}: ${message.text}`;
+        messagesDiv.appendChild(messageElement);
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
     }
 
-    window.onerror = function(message, source, lineno, colno, error) {
-        console.error('Global error:', {message, source, lineno, colno, error});
-    };
-
-    stompClient.debug = function(str) {
-        console.log('STOMP DEBUG:', str);
+    window.onload = () => {
+        connect();
+        document.getElementById('messageInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendMessage();
+        });
     };
 </script>
 </body>
